@@ -245,29 +245,31 @@ module rackTooth(faceWidth, pitch, helixAngle=0, pressureAngle=20) {
 	ded = 1.25 * modul;
 
 	// (half of) inner and outer tooth widths
-	iw = baseToothThickness/2 - add*tan(pressureAngle);
-	ow = baseToothThickness/2 + ded*tan(pressureAngle);
+	iw = baseToothThickness/2 + add*tan(pressureAngle);
+	ow = baseToothThickness/2 - ded*tan(pressureAngle);
 
 	dx = tan(helixAngle) * faceWidth/2;
 
+	epsilon = 0.1;
+
 	polyhedron(
 			points=[
-				[-iw-dx, -ded, -faceWidth/2],
-				[-ow-dx,  add, -faceWidth/2],
-				[ ow-dx,  add, -faceWidth/2],
-				[ iw-dx, -ded, -faceWidth/2],
-				[-iw+dx, -ded,  faceWidth/2],
-				[-ow+dx,  add,  faceWidth/2],
-				[ ow+dx,  add,  faceWidth/2],
-				[ iw+dx, -ded,  faceWidth/2]
+				[-iw-dx, -ded-epsilon, -faceWidth/2],
+				[-ow-dx,  add,         -faceWidth/2],
+				[ ow-dx,  add,         -faceWidth/2],
+				[ iw-dx, -ded-epsilon, -faceWidth/2],
+				[-iw+dx, -ded-epsilon,  faceWidth/2],
+				[-ow+dx,  add,          faceWidth/2],
+				[ ow+dx,  add,          faceWidth/2],
+				[ iw+dx, -ded-epsilon,  faceWidth/2]
 			],
 
 			faces=[
-				[0,1,2,3],
+				[0,3,2,1],
 				[0,1,5,4],
 				[1,2,6,5],
 				[2,3,7,6],
-				[0,3,7,4],
+				[0,4,7,3],
 				[4,5,6,7]
 			],
 
@@ -290,7 +292,7 @@ module rack(length, depth, faceWidth, pitch, angle, offset=0, pressureAngle=20) 
 
 	union() {
 		cube_depth = depth-(add+ded);
-		translate([0,cube_depth/2+add,0])
+		translate([0,-cube_depth/2-ded,0])
 			cube([length, cube_depth, faceWidth], center=true);
 
 		for(x=[-length/2 + offset*pitch:pitch:length/2]) {
