@@ -170,10 +170,79 @@ module spurGear(nTeeth, faceWidth, pitchCircleRadius, diskWidth, ringRadius, cen
 		nTeeth            = nTeeth,
 		faceWidth         = faceWidth,
 		pitchCircleRadius = pitchCircleRadius,
-		diskWidth          = diskWidth,
+		diskWidth         = diskWidth,
 		ringRadius        = ringRadius,
 		centerRadius      = centerRadius,
 		holeRadius        = holeRadius,
 		helixAngle        = 0
 	);
+}
+
+module rackTooth(faceWidth, pitch, helixAngle=0, pressureAngle=20) {
+	baseToothThickness = pitch/2;
+	modul = pitch / PI;
+
+	add = modul;
+	ded = 1.25 * modul;
+
+	// (half of) inner and outer tooth widths
+	iw = baseToothThickness/2 - add*tan(pressureAngle);
+	ow = baseToothThickness/2 + ded*tan(pressureAngle);
+
+	dx = tan(helixAngle) * faceWidth/2;
+
+	polyhedron(
+			points=[
+				[-iw-dx, -ded, -faceWidth/2],
+				[-ow-dx,  add, -faceWidth/2],
+				[ ow-dx,  add, -faceWidth/2],
+				[ iw-dx, -ded, -faceWidth/2],
+				[-iw+dx, -ded,  faceWidth/2],
+				[-ow+dx,  add,  faceWidth/2],
+				[ ow+dx,  add,  faceWidth/2],
+				[ iw+dx, -ded,  faceWidth/2]
+			],
+
+			faces=[
+				[0,1,2,3],
+				[0,1,5,4],
+				[1,2,6,5],
+				[2,3,7,6],
+				[0,3,7,4],
+				[4,5,6,7]
+			],
+
+			convexity=2
+		);
+}
+
+module rack(length, depth, faceWidth, pitch, angle, offset=0, pressureAngle=20) {
+	// A rack that meshes with a helical or spur gear.
+	// Parameters:
+	//  - length: length of the rack
+	//  - depth: length of the rack along the direction the teeth point in
+	//  - faceWidth: length of the teeth along the long axis of the rack (the axis along which it can move)
+	//  - pitch: number of teeth per unit length
+	//  - angle: angle of teeth relative to the long axis of the rack. compatible with helicalGear's helixAngle.
+	modul = pitch / PI;
+
+	add = modul;
+	ded = 1.25 * modul;
+
+	union() {
+		cube_depth = depth-(add+ded);
+		translate([0,cube_depth/2+add,0])
+			cube([length, cube_depth, faceWidth], center=true);
+
+		for(x=[-length/2 + offset*pitch:pitch:length/2]) {
+			translate([x,0,0]) {
+				rackTooth(
+						faceWidth     = faceWidth,
+						pitch         = pitch,
+						helixAngle    = angle,
+						pressureAngle = pressureAngle
+					);
+			}
+		}
+	}
 }
