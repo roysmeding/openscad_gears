@@ -1,4 +1,4 @@
-module gearTooth(faceWidth, baseRadius, innerRadius, outerRadius, baseToothThickness, helixTwist=0, numPoints=20, numSlices=10) {
+module gearTooth(faceWidth, baseRadius, innerRadius, outerRadius, baseToothThickness, helixTwist=0, numPoints=100, numSlices=100) {
 	// A single involute profile gear tooth.
 	// Parameters:
 	//  - faceWidth:   Length of the tooth along the gear's axis of rotation.
@@ -23,22 +23,30 @@ module gearTooth(faceWidth, baseRadius, innerRadius, outerRadius, baseToothThick
 	function involute(t, a)    = [baseRadius*(cos(r2d(t)+a) + t*sin(r2d(t)+a)),  baseRadius*(sin(r2d(t)+a) - t*cos(r2d(t)+a))];
 	function involute_r(t, a)  = [baseRadius*(cos(r2d(t)-a) + t*sin(r2d(t)-a)), -baseRadius*(sin(r2d(t)-a) - t*cos(r2d(t)-a))];
 
-	linear_extrude(height=faceWidth, center=true, twist=helixTwist, slices=numSlices)
+	linear_extrude(height=faceWidth, center=true, twist=helixTwist, slices=numSlices, convexity=10, $fn=100)
 		polygon(concat(
-				(baseRadius<innerRadius) ? [] : [
-					polar(innerRadius,         -baseToothThickness/2),
-					polar( baseRadius+epsilon, -baseToothThickness/2),
-				],
-
-				[for(t=[tStart :  tStep : tEnd  ]) involute(t,   -baseToothThickness/2) ],
-				[for(t=[tEnd   : -tStep : tStart]) involute_r(t,  baseToothThickness/2) ],
-
-				(baseRadius<innerRadius) ? [] : [
-					polar( baseRadius+epsilon, baseToothThickness/2),
+					// optional tooth base
+					(baseRadius<innerRadius) ? [] : [
 					polar(innerRadius,         baseToothThickness/2),
-				]
-			)
-		);
+					polar( baseRadius+epsilon, baseToothThickness/2),
+					],
+
+					// first involute face
+					[for(t=[tStart :  tStep : tEnd  ]) involute_r(t,  baseToothThickness/2) ],
+
+					// outer edge of tooth
+					[polar(outerRadius, 0)],
+
+					// second involute face
+					[for(t=[tEnd   : -tStep : tStart]) involute(t,   -baseToothThickness/2) ],
+
+					// optional tooth base
+					(baseRadius<innerRadius) ? [] : [
+					polar( baseRadius+epsilon, -baseToothThickness/2),
+					polar(innerRadius,         -baseToothThickness/2),
+					]
+			      )
+		       );
 }
 
 module spurTeeth(nTeeth, faceWidth, pitchCircleRadius, addendum, dedendum, backlash=0.01, helixAngle=0, pressureAngle=20) {
@@ -98,7 +106,7 @@ module helicalGear(nTeeth, faceWidth, pitchCircleRadius, diskWidth, ringRadius, 
 	difference() {
 		union() {
 			// Teeth
-			spurTeeth(nTeeth, faceWidth, pitchCircleRadius, addendum, dedendum, pressureAngle=pressureAngle, helixAngle=helixAngle);
+			spurTeeth(nTeeth, faceWidth, pitchCircleRadius, addendum, dedendum, pressureAngle=20, helixAngle=helixAngle);
 
 			// Ring that the teeth attach to
 			difference() {
@@ -140,8 +148,8 @@ module herringboneGear(nTeeth, faceWidth, pitchCircleRadius, diskWidth, ringRadi
 
 			mirror([0,0,1])
 				translate([0,0,-faceWidth/4])
-					rotate(v=[0,0,1], a=offset*360/nTeeth)
-						spurTeeth(nTeeth, faceWidth/2, pitchCircleRadius, addendum, dedendum, helixAngle=helixAngle);
+				rotate(v=[0,0,1], a=offset*360/nTeeth)
+				spurTeeth(nTeeth, faceWidth/2, pitchCircleRadius, addendum, dedendum, helixAngle=helixAngle);
 
 			difference() {
 				cylinder(r=innerRadius,              h=faceWidth,     center=true);
@@ -167,15 +175,66 @@ module spurGear(nTeeth, faceWidth, pitchCircleRadius, diskWidth, ringRadius, cen
 	//  - holeRadius:   Radius of the hole
 
 	helicalGear(
-		nTeeth            = nTeeth,
-		faceWidth         = faceWidth,
-		pitchCircleRadius = pitchCircleRadius,
-		diskWidth         = diskWidth,
-		ringRadius        = ringRadius,
-		centerRadius      = centerRadius,
-		holeRadius        = holeRadius,
-		helixAngle        = 0
-	);
+			nTeeth            = nTeeth,
+			faceWidth         = faceWidth,
+			pitchCircleRadius = pitchCircleRadius,
+			diskWidth          = diskWidth,
+			ringRadius        = ringRadius,
+			centerRadius      = centerRadius,
+			holeRadius        = holeRadius,
+			helixAngle        = 0
+		);
+}
+
+module worm(nThreads, length, capHeight, pitchCircleRadius, holeRadius, leadAngle) {
+	modul    = pitchCircleRadius*2*cos(90-leadAngle) / nThreads;
+
+	addendum = modul;
+	dedendum = modul*1.4;
+
+	innerRadius = pitchCircleRadius - dedendum;
+	outerRadius = pitchCircleRadius + addendum;
+
+	helixAngle = (leadAngle > 0) ? 90 - leadAngle : -90 - leadAngle;
+
+	difference() {
+		union() {
+			spurTeeth(nThreads, length, pitchCircleRadius, addendum, dedendum, pressureAngle=20, helixAngle=helixAngle);
+			cylinder(r=innerRadius, h=length, center=true);
+			translate([0,0,(length-capHeight)/2]) cylinder(r=outerRadius, h=capHeight, center=true);
+			translate([0,0,(capHeight-length)/2]) cylinder(r=outerRadius, h=capHeight, center=true);
+		}
+
+		cylinder(r=holeRadius, h=length+0.01, center=true);
+	}
+}
+
+module wormGear(nTeeth, faceWidth, pitchCircleRadius, diskWidth, ringRadius, centerRadius, holeRadius, helixAngle=30) {
+	modul    = pitchCircleRadius*2 / nTeeth;
+
+	// These are standard addendum/dedendum values from the AGMA for general use.
+	addendum = modul;
+	dedendum = 1.25*modul;
+
+	innerRadius = pitchCircleRadius - dedendum;
+
+	difference() {
+		union() {
+			// Teeth
+			spurTeeth(nTeeth, faceWidth, pitchCircleRadius, addendum, dedendum, pressureAngle=20, helixAngle=helixAngle);
+
+			// Ring that the teeth attach to
+			difference() {
+				cylinder(r=innerRadius,              h=faceWidth,     center=true);
+				cylinder(r=innerRadius - ringRadius, h=faceWidth+0.1, center=true);
+			}
+
+			// 
+			cylinder(r=innerRadius - ringRadius, h=diskWidth, center=true);
+			cylinder(r=centerRadius, h=faceWidth, center=true);
+		}
+		cylinder(r=holeRadius, h=faceWidth+0.1, center=true);
+	}
 }
 
 module rackTooth(faceWidth, pitch, helixAngle=0, pressureAngle=20) {
